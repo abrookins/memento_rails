@@ -1,0 +1,62 @@
+<div id='lifemap'>
+    <div id='content'>
+        <div id='navigation-container'>
+            <h1 id="navigation-header"><%= link_to "<", :back %> <%= @map.title %></h1> 
+            <div id='timeline-container'>
+                <div id='timeline'>
+                    <form id='timeline-select'>
+                        <label for='year'>Year</label>
+                        <select id='year' name='year'>
+                            <option>Any</option>
+                            <%= @years.each do |year| %>
+                                <option><%= year %></option>
+                            <% end %>
+                        </select>
+                        <label for='month'>Month</label>
+                        <select id='month' name='month'>
+                            <option>Any</option>
+                            <option>January</option>
+                            <option>February</option>
+                            <option>March</option>
+                            <option>April</option>
+                            <option>May</option>
+                            <option>June</option>
+                            <option>July</option>
+                            <option>August</option>
+                            <option>September</option>
+                            <option>October</option>
+                            <option>November</option>
+                            <option>December</option>
+                        </select>
+                    </form>
+                </div>
+            </div>
+            <div id='navigation'>
+                <ul id='navigation-items'></ul>
+            </div>
+        </div>
+        <div id='mapcontainer'>
+            <div id='map'></div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+(function($) { 
+    function resizeNav() {
+        // Size the navigation to the map.
+        var mapHeight = $("#mapcontainer").height();
+        $("#navigation-container").css("height", mapHeight-2); // 1px border
+    }
+    $(window).load(function() {
+        var map = new Map(<%= @map_json %>);
+        new HomeController({ map: map });
+        Backbone.history.start();
+        resizeNav();
+    });
+    $(window).resize(function() {
+        resizeNav();
+    });
+})(jQuery);
+</script>
+

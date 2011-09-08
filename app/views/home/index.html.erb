@@ -1,0 +1,10 @@
+<h1>Memento</h1>
+
+<p>Leave a memento.</p>
+
+<% if user_signed_in? %>
+    <p><%= link_to "My Maps", maps_path %></p>
+    <p><%= link_to "My Feeds", feeds_path %></p>
+<% else %>
+    <p>To get started, <a href="/users/sign_in">log in</a> or <a href="/users/sign_up">sign up</a>.</p>
+<% end %>

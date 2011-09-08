@@ -1,0 +1,24 @@
+<h1>New Map</h1>
+<p>Create a new map.</p>
+
+<%= form_for(@map) do |f| %>
+  <% if @map.errors.any? %>
+  <div id="errorExplanation">
+    <h2>Oops, <%= pluralize(@map.errors.count, "error") %> errors:</h2>
+    <ul>
+    <% @map.errors.full_messages.each do |msg| %>
+      <li><%= msg %></li>
+    <% end %>
+    </ul>
+  </div>
+  <% end %>
+ 
+  <div class="field">
+    <%= f.label :title %><br />
+    <%= f.text_field :title %>
+  </div>
+  <div class="actions">
+    <%= f.submit %>
+  </div>
+<% end %>
+

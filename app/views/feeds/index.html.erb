@@ -1,0 +1,13 @@
+<h1>Your Feeds</h1>
+
+<% if current_user.feeds.any? %>
+    <p>You've created the following feeds:</p>
+    <ul>
+    <% current_user.feeds.each do |feed| %>
+        <li><%= link_to feed.title, feed %></li>
+    <% end %>
+    </ul>
+<% else %>
+    <p>No feeds.</p>
+<% end %>
+<p><%= link_to "Add feed", new_feed_path %></p>

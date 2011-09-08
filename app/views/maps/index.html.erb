@@ -1,0 +1,13 @@
+<h1>Your Maps</h1>
+
+<% if current_user.maps.any? %>
+    <p>You've created the following maps:</p>
+    <ul>
+    <% current_user.maps.each do |map| %>
+        <li><%= link_to map.title, map %></li>
+    <% end %>
+    </ul>
+<% else %>
+    <p>No maps.</p>
+<% end %>
+<p><%= link_to "Add map", new_map_path %></p>

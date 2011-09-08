@@ -1,0 +1,10 @@
+== Memento (Rails version)
+
+*Note*: Seriously WIP
+
+This is a Rails version of a web app I've been writing in node.js/CoffeeScript
+to experiment with building mapping apps in CoffeeScript.
+
+The public/javascripts/map.coffee file is pretty similar to the same file in my
+'memento' repo, with some small updates and improvements. Most of the other
+difference are modeling/framework specific.
