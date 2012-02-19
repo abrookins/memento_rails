@@ -85,7 +85,7 @@
       return this.filter(function(geographicEvent) {
         var eventDate, eventMonth, eventYear, isMatch;
         eventDate = geographicEvent.getDate();
-        eventMonth = eventDate.getMonth().toString();
+        eventMonth = (eventDate.getMonth() + 1).toString();
         eventYear = eventDate.getFullYear().toString();
         isMatch = false;
         if (year === 'Any') {
@@ -130,7 +130,7 @@
     function MarkerView() {
       MarkerView.__super__.constructor.apply(this, arguments);
     }
-    MarkerView.prototype.template = _.template("<div class='marker-content'>\n  <div class='marker-header'>\n    <span class='title'>{{ title }}</span>\n    <span class='meta'>{{ date.getMonth() }}/{{ date.getFullYear() }}. Added by {{ author }}.</span>\n  </div>\n  <div class='marker-place'><emphasis>{{ place }}</emphasis></div>\n  <div class='marker-description'>{{ description }}</div>\n  <a class='edit-marker' name='edit-marker' href='#markers/marker/edit/{{ id }}'>Edit</a>\n</div>");
+    MarkerView.prototype.template = _.template("<div class='marker-content'>\n  <div class='marker-header'>\n    <span class='title'>{{ title }}</span>\n    <span class='meta'>{{ date.getMonth()+1 }}/{{ date.getFullYear() }}. Added by {{ author }}.</span>\n  </div>\n  <div class='marker-place'><emphasis>{{ place }}</emphasis></div>\n  <div class='marker-description'>{{ description }}</div>\n  <a class='edit-marker' name='edit-marker' href='#markers/marker/edit/{{ id }}'>Edit</a>\n</div>");
     MarkerView.prototype.editTemplate = _.template("<div class='marker-edit-form'>\n  <form id='marker-edit'>\n  <input id='title' name='title' type='text' value='{{ title }}' placeholder='Title'>\n  <input id='place' name='place' type='text' value='{{ place }}' placeholder='Place'>\n  <textarea id='description-{{ id }}' name='description' rows=25 cols=45 placeholder='Description'>\n    {{ description }}\n  </textarea>\n  <a class='save-button' name='save-button' href='#markers/marker/save/{{ id }}'>Save</a>\n  <a class='cancel-button' name='cancel-button' href='#markers/marker/cancel/{{ id }}'>Cancel</a>\n</div>");
     MarkerView.prototype.validActions = ['open', 'close', 'save', 'edit', 'cancel', 'toggle'];
     MarkerView.prototype.initialize = function() {
@@ -189,7 +189,6 @@
       });
     };
     MarkerView.prototype.addEditor = function() {
-      console.log("adding editor...", this.ckeditor);
       if (!(this.ckeditor != null)) {
         return this.ckeditor = CKEDITOR.replace('description-' + this.model.get("id"), {
           toolbar: [['Source', '-', 'Bold', 'Italic', 'Image', 'Link', 'Unlink']]
@@ -400,7 +399,7 @@
     }
     AppView.prototype.initialize = function() {
       var defaults, portlandOregon;
-      _.bindAll(this, "addGeographicEventsDuring", "addGeographicEvent", "render", "remove", "filterMarkers");
+      _.bindAll(this, "addGeographicEventsDuring", "addGeographicEvent", "render", "remove", "filterMarkers", "navigateToFilterUrl");
       this.googleMap = null;
       this.markerViews = [];
       this.navigationView = new NavigationView({
@@ -417,10 +416,10 @@
       this.options = $.extend(defaults, this.options);
       this.googleMap = this.initGoogleMap();
       this.infoWindow = this.initInfoWindow();
-      this.navigationView.bind("nav:timeControlChanged", this.filterMarkers);
-      this.model.get('geographic_events').bind("refresh", this.filterMarkers);
+      this.navigationView.bind("nav:timeControlChanged", this.navigateToFilterUrl);
+      this.model.get('geographic_events').bind("refresh", this.navigateToFilterUrl);
       this.model.get('geographic_events').bind("add", this.addGeographicEvent);
-      return this.filterMarkers();
+      return this.navigateToFilterUrl();
     };
     AppView.prototype.sendActionToMarker = function(action, id) {
       var markers;
@@ -465,8 +464,14 @@
 
       }
     };
-    AppView.prototype.filterMarkers = function() {
-      return this.render(this.navigationView.getSelectedYear(), this.navigationView.getSelectedMonth());
+    AppView.prototype.navigateToFilterUrl = function() {
+      var month, year;
+      year = this.navigationView.getSelectedYear();
+      month = this.navigationView.getSelectedMonth();
+      return window.location = '#markers/filter/' + year + '/' + month;
+    };
+    AppView.prototype.filterMarkers = function(year, month) {
+      return this.render(year, month);
     };
     AppView.prototype.addGeographicEvent = function(geographicEvent) {
       return this.markerViews.push(new MarkerView({
@@ -496,7 +501,8 @@
       HomeController.__super__.constructor.apply(this, arguments);
     }
     HomeController.prototype.routes = {
-      "markers/marker/:action/:id": "sendActionToMarker"
+      "markers/marker/:action/:id": "sendActionToMarker",
+      "markers/filter/:year/:month": "filterMarkers"
     };
     HomeController.prototype.initialize = function(options) {
       this.appView = new AppView({
@@ -506,6 +512,9 @@
     };
     HomeController.prototype.sendActionToMarker = function(action, id) {
       return this.appView.sendActionToMarker(action, id);
+    };
+    HomeController.prototype.filterMarkers = function(year, month) {
+      return this.appView.filterMarkers(year, month);
     };
     return HomeController;
   })();

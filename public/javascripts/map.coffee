@@ -67,17 +67,19 @@ class GeographicEventList extends Backbone.Collection
   getGeographicEventsDuring: (year, month) ->
     if year is "Any"
       return @models
+
     @filter (geographicEvent) ->
       eventDate = geographicEvent.getDate()
-      eventMonth = eventDate.getMonth().toString()
+      # getMonth() starts at zero.
+      eventMonth = (eventDate.getMonth()+1).toString()
       eventYear = eventDate.getFullYear().toString()
       isMatch = false
 
       if year == 'Any'
         isMatch = true
       else
-        isMatch = eventYear is year
-        isMatch = if month == 'Any' then isMatch else isMatch and eventMonth is month
+        isMatch = eventYear == year
+        isMatch = if month == 'Any' then isMatch else isMatch and eventMonth == month
 
       return isMatch
 
@@ -110,7 +112,7 @@ class MarkerView extends Backbone.View
     <div class='marker-content'>
       <div class='marker-header'>
         <span class='title'>{{ title }}</span>
-        <span class='meta'>{{ date.getMonth() }}/{{ date.getFullYear() }}. Added by {{ author }}.</span>
+        <span class='meta'>{{ date.getMonth()+1 }}/{{ date.getFullYear() }}. Added by {{ author }}.</span>
       </div>
       <div class='marker-place'><emphasis>{{ place }}</emphasis></div>
       <div class='marker-description'>{{ description }}</div>
@@ -157,7 +159,6 @@ class MarkerView extends Backbone.View
     @marker.age = (now.getTime() - date.getTime()) / 86400000
 
     # Show this marker's content when the user clicks its icon.
-    # TODO: Appview listens for event and does this?
     google.maps.event.addListener @marker, "click", => @open()
     
     # Render the marker whenever the model changes.
@@ -196,7 +197,6 @@ class MarkerView extends Backbone.View
     google.maps.event.addListener @infoWindow, 'content_changed', -> clear()
 
   addEditor: ->
-    console.log "adding editor...", @ckeditor
     if not @ckeditor?
       @ckeditor = CKEDITOR.replace 'description-' + @model.get("id"),
         toolbar: [['Source', '-', 'Bold', 'Italic', 'Image', 'Link', 'Unlink']]
@@ -215,19 +215,19 @@ class MarkerView extends Backbone.View
     # Replace the marker's infoWindow with read-only HTML.
     return @template @model.toJSON()
 
+  # Replace the marker's infoWindow with an edit form.
   editFormHtml: ->
-    # Replace the marker's infoWindow with an edit form.
     return @editTemplate @model.escapedJson()
 
+  # Handle an action routed from the controller if the action is valid.
   handleAction: (action) ->
-    # Handle an action routed from the controller if the action is valid.
     if typeof @[action] is 'function' and _.indexOf @validActions, action isnt -1
       @[action]()
 
   # ACTIONS
    
+  # Pan to the marker and open its infoWindow.
   open: ->
-    # Pan to the marker
     @map.panTo @marker.getPosition()
     if @map.getZoom() < @zoomLevel
       @map.setZoom @zoomLevel
@@ -401,7 +401,8 @@ class AppView extends Backbone.View
   # In this class, 'model' is a Map that contains GeographicEvent objects
   # serialized to JSON.
   initialize: ->
-    _.bindAll @, "addGeographicEventsDuring", "addGeographicEvent", "render", "remove", "filterMarkers"
+    _.bindAll @, "addGeographicEventsDuring", "addGeographicEvent", "render",
+      "remove", "filterMarkers", "navigateToFilterUrl"
   
     @googleMap = null
     @markerViews = []
@@ -423,10 +424,10 @@ class AppView extends Backbone.View
     @infoWindow = @initInfoWindow()
 
     # Bind events to methods.
-    @navigationView.bind "nav:timeControlChanged", @filterMarkers
-    @model.get('geographic_events').bind "refresh", @filterMarkers
+    @navigationView.bind "nav:timeControlChanged", @navigateToFilterUrl
+    @model.get('geographic_events').bind "refresh", @navigateToFilterUrl
     @model.get('geographic_events').bind "add", @addGeographicEvent
-    @filterMarkers()
+    @navigateToFilterUrl()
 
   sendActionToMarker: (action, id) ->
     id = parseInt(id)
@@ -461,10 +462,18 @@ class AppView extends Backbone.View
       @googleMap.panTo latestGeographicEvent.marker.getPosition()
     else
       # TODO: Handle the case where no markers are visible. 
+ 
+  # Send the browser to a URL that will filter the visible markers by the
+  # currently selected month and year. Do this instead of calling a method
+  # direclty so that we establish a bookmarkable URL and history item.
+  navigateToFilterUrl: ->
+    year = @navigationView.getSelectedYear()
+    month = @navigationView.getSelectedMonth()
+    window.location = '#markers/filter/' + year + '/' + month
 
-  # Remove all markers and add any that match the selected year and month.
-  filterMarkers: ->
-    @render @navigationView.getSelectedYear(), @navigationView.getSelectedMonth()
+  # Render any markers that match the selected year and month.
+  filterMarkers: (year, month) ->
+    @render year, month
 
   addGeographicEvent: (geographicEvent) ->
     @markerViews.push new MarkerView
@@ -484,6 +493,7 @@ class AppView extends Backbone.View
 class HomeController extends Backbone.Controller
   routes:
     "markers/marker/:action/:id": "sendActionToMarker"
+    "markers/filter/:year/:month": "filterMarkers"
 
   initialize: (options) ->
     @appView = new AppView
@@ -493,6 +503,10 @@ class HomeController extends Backbone.Controller
 
   sendActionToMarker: (action, id) ->
     @appView.sendActionToMarker action, id
+
+  filterMarkers: (year, month) ->
+    @appView.filterMarkers(year, month)
+
   
 window.memento.HomeController = HomeController
 window.memento.GeographicEventList = GeographicEventList
