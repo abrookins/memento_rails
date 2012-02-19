@@ -2,7 +2,7 @@
   /*
   This script generates a Google map populated with events given to it by the
   server.
-      
+    
   It uses Backbone.js to separate concerns betwen models, views and controllers.
   Models are RESTful wrappers around server-side objects persisted in the
   database, and can POST back changes the user makes to his or her content.
@@ -44,9 +44,20 @@
       return json = {
         title: this.escape("title"),
         author: this.escape("author"),
-        date: this.get("date"),
+        date: this.getDate(),
         place: this.escape("place"),
         description: this.escape("description"),
+        id: this.get("id")
+      };
+    };
+    GeographicEvent.prototype.toJSON = function() {
+      var json;
+      return json = {
+        title: this.get("title"),
+        author: this.get("author"),
+        date: this.getDate(),
+        place: this.get("place"),
+        description: this.get("description"),
         id: this.get("id")
       };
     };
@@ -67,12 +78,23 @@
       GeographicEventList.__super__.constructor.apply(this, arguments);
     }
     GeographicEventList.prototype.model = GeographicEvent;
-    GeographicEventList.prototype.geographicEventsForYear = function(year) {
+    GeographicEventList.prototype.getGeographicEventsDuring = function(year, month) {
       if (year === "Any") {
         return this.models;
       }
       return this.filter(function(geographicEvent) {
-        return year === "Any" || geographicEvent.getDate().getFullYear().toString() === year;
+        var eventDate, eventMonth, eventYear, isMatch;
+        eventDate = geographicEvent.getDate();
+        eventMonth = eventDate.getMonth().toString();
+        eventYear = eventDate.getFullYear().toString();
+        isMatch = false;
+        if (year === 'Any') {
+          isMatch = true;
+        } else {
+          isMatch = eventYear === year;
+          isMatch = month === 'Any' ? isMatch : isMatch && eventMonth === month;
+        }
+        return isMatch;
       });
     };
     return GeographicEventList;
@@ -108,8 +130,8 @@
     function MarkerView() {
       MarkerView.__super__.constructor.apply(this, arguments);
     }
-    MarkerView.prototype.template = _.template("<div class='marker-content'>\n    <div class='marker-header'>\n        <span class='title'>{{ title }}</span>\n        <span class='meta'>Added by {{ author }} on {{ date }}</span>\n    </div>\n    <div class='marker-place'><emphasis>{{ place }}</emphasis></div>\n    <div class='marker-description'>{{ description }}</div>\n    <a class='edit-marker' name='edit-marker' href='#markers/marker/edit/{{ id }}'>Edit</a>\n</div>");
-    MarkerView.prototype.editTemplate = _.template("<div class='marker-edit-form'>\n    <form id='marker-edit'>\n    <input id='title' name='title' type='text' value='{{ title }}' placeholder='Title'>\n    <input id='place' name='place' type='text' value='{{ place }}' placeholder='Place'>\n    <textarea id='description-{{ id }}' name='description' rows=25 cols=45 placeholder='Description'>\n        {{ description }}\n    </textarea>\n    <a class='save-button' name='save-button' href='#markers/marker/save/{{ id }}'>Save</a>\n    <a class='cancel-button' name='cancel-button' href='#markers/marker/cancel/{{ id }}'>Cancel</a>\n</div>");
+    MarkerView.prototype.template = _.template("<div class='marker-content'>\n  <div class='marker-header'>\n    <span class='title'>{{ title }}</span>\n    <span class='meta'>{{ date.getMonth() }}/{{ date.getFullYear() }}. Added by {{ author }}.</span>\n  </div>\n  <div class='marker-place'><emphasis>{{ place }}</emphasis></div>\n  <div class='marker-description'>{{ description }}</div>\n  <a class='edit-marker' name='edit-marker' href='#markers/marker/edit/{{ id }}'>Edit</a>\n</div>");
+    MarkerView.prototype.editTemplate = _.template("<div class='marker-edit-form'>\n  <form id='marker-edit'>\n  <input id='title' name='title' type='text' value='{{ title }}' placeholder='Title'>\n  <input id='place' name='place' type='text' value='{{ place }}' placeholder='Place'>\n  <textarea id='description-{{ id }}' name='description' rows=25 cols=45 placeholder='Description'>\n    {{ description }}\n  </textarea>\n  <a class='save-button' name='save-button' href='#markers/marker/save/{{ id }}'>Save</a>\n  <a class='cancel-button' name='cancel-button' href='#markers/marker/cancel/{{ id }}'>Cancel</a>\n</div>");
     MarkerView.prototype.validActions = ['open', 'close', 'save', 'edit', 'cancel', 'toggle'];
     MarkerView.prototype.initialize = function() {
       var date, now, position;
@@ -258,7 +280,7 @@
     function NavigationItemView() {
       NavigationItemView.__super__.constructor.apply(this, arguments);
     }
-    NavigationItemView.prototype.template = _.template("<li>\n    <h3><a href='#markers/marker/open/{{ id }}'>{{ title }}</a></h4>\n    <p>{{ description }}</p>\n</li>");
+    NavigationItemView.prototype.template = _.template("<li>\n  <h3><a href='#markers/marker/open/{{ id }}'>{{ title }}</a></h4>\n  <p>{{ description }}</p>\n</li>");
     NavigationItemView.prototype.initialize = function() {
       _.bindAll(this, 'render');
       return this.model.bind('change', this.render);
@@ -298,13 +320,15 @@
       NavigationView.__super__.constructor.apply(this, arguments);
     }
     NavigationView.prototype.initialize = function() {
-      _.bindAll(this, 'render', 'addGeographicEvent', 'addGeographicEventsForYear', 'remove', 'getSelectedYear');
+      _.bindAll(this, 'render', 'addGeographicEvent', 'addGeographicEventsDuring', 'remove');
       this.itemViews = [];
-      this.selectId = this.options.selectId || "year";
+      this.yearSelectId = this.options.yearSelectId || "year";
+      this.monthSelectId = this.options.monthSelectId || "month";
       this.year = this.getSelectedYear();
       this.id = this.id || "navigation";
       this.collection.bind('add', this.addGeographicEvent);
       this.collection.bind('refresh', this.render);
+      this.renderTimeControl();
       return this.render();
     };
     NavigationView.prototype.addGeographicEvent = function(geographicEvent) {
@@ -314,34 +338,32 @@
       });
       return this.itemViews.push(view);
     };
-    NavigationView.prototype.addGeographicEventsForYear = function(year) {
+    NavigationView.prototype.addGeographicEventsDuring = function(year, month) {
       var geographicEvents;
-      geographicEvents = this.collection.geographicEventsForYear(year);
+      geographicEvents = this.collection.getGeographicEventsDuring(year, month);
       return $.each(geographicEvents, __bind(function(_, geographicEvent) {
         return this.addGeographicEvent(geographicEvent);
       }, this));
     };
     NavigationView.prototype.render = function() {
-      if (this.slider == null) {
-        this.renderSlider();
-      }
-      this.remove();
-      this.addGeographicEventsForYear(this.year);
+      this.removeAll();
+      this.addGeographicEventsDuring(this.year, this.month);
       return $.each(this.itemViews, function() {
         return this.render();
       });
     };
-    NavigationView.prototype.renderSlider = function() {
+    NavigationView.prototype.renderTimeControl = function() {
       var monthSelect, yearSelect;
-      yearSelect = $("#" + this.selectId);
-      monthSelect = $("#month");
-      return yearSelect.change(__bind(function() {
-        var option;
-        option = yearSelect.children("option:selected");
-        return this.yearChanged();
+      yearSelect = $("#" + this.yearSelectId);
+      monthSelect = $("#" + this.monthSelectId);
+      yearSelect.change(__bind(function() {
+        return this.timeControlChanged();
+      }, this));
+      return monthSelect.change(__bind(function() {
+        return this.timeControlChanged();
       }, this));
     };
-    NavigationView.prototype.remove = function() {
+    NavigationView.prototype.removeAll = function() {
       if (this.itemViews) {
         $.each(this.itemViews, function() {
           return this.remove();
@@ -349,19 +371,25 @@
         return this.itemViews = [];
       }
     };
-    NavigationView.prototype.getSelectedYear = function() {
+    NavigationView.prototype.getSelectedOption = function(id) {
       var option;
-      option = $("#" + this.selectId).children("option:selected");
+      option = $("#" + id).children("option:selected");
       return option.val();
     };
-    NavigationView.prototype.yearChanged = function() {
-      var year;
+    NavigationView.prototype.getSelectedYear = function() {
+      return this.getSelectedOption(this.yearSelectId);
+    };
+    NavigationView.prototype.getSelectedMonth = function() {
+      return this.getSelectedOption(this.monthSelectId);
+    };
+    NavigationView.prototype.timeControlChanged = function() {
+      var month, year;
       year = this.getSelectedYear();
-      if (!(this.year != null) || this.year !== year) {
-        this.year = year;
-        this.render();
-        return this.trigger("nav:yearChanged", year);
-      }
+      month = this.getSelectedMonth();
+      this.year = year;
+      this.month = month;
+      this.render();
+      return this.trigger("nav:timeControlChanged");
     };
     return NavigationView;
   })();
@@ -372,7 +400,7 @@
     }
     AppView.prototype.initialize = function() {
       var defaults, portlandOregon;
-      _.bindAll(this, "addGeographicEventsForYear", "addGeographicEvent", "render", "remove");
+      _.bindAll(this, "addGeographicEventsDuring", "addGeographicEvent", "render", "remove", "filterMarkers");
       this.googleMap = null;
       this.markerViews = [];
       this.navigationView = new NavigationView({
@@ -389,7 +417,7 @@
       this.options = $.extend(defaults, this.options);
       this.googleMap = this.initGoogleMap();
       this.infoWindow = this.initInfoWindow();
-      this.navigationView.bind("nav:yearChanged", this.filterMarkers);
+      this.navigationView.bind("nav:timeControlChanged", this.filterMarkers);
       this.model.get('geographic_events').bind("refresh", this.filterMarkers);
       this.model.get('geographic_events').bind("add", this.addGeographicEvent);
       return this.filterMarkers();
@@ -426,10 +454,10 @@
         maxWidth: this.options.infoWindowMaxWidth
       });
     };
-    AppView.prototype.render = function(year) {
+    AppView.prototype.render = function(year, month) {
       var latestGeographicEvent;
-      this.remove();
-      this.addGeographicEventsForYear(year);
+      this.removeAll();
+      this.addGeographicEventsDuring(year, month);
       latestGeographicEvent = this.markerViews[this.markerViews.length - 1];
       if (latestGeographicEvent !== void 0) {
         return this.googleMap.panTo(latestGeographicEvent.marker.getPosition());
@@ -438,7 +466,7 @@
       }
     };
     AppView.prototype.filterMarkers = function() {
-      return this.render(this.navigationView.getSelectedYear());
+      return this.render(this.navigationView.getSelectedYear(), this.navigationView.getSelectedMonth());
     };
     AppView.prototype.addGeographicEvent = function(geographicEvent) {
       return this.markerViews.push(new MarkerView({
@@ -447,18 +475,18 @@
         infoWindow: this.infoWindow
       }));
     };
-    AppView.prototype.addGeographicEventsForYear = function(year) {
+    AppView.prototype.addGeographicEventsDuring = function(year, month) {
       var geographicEvents;
-      geographicEvents = this.model.get('geographic_events').geographicEventsForYear(year);
+      geographicEvents = this.model.get('geographic_events').getGeographicEventsDuring(year, month);
       return $.each(geographicEvents, __bind(function(_, geographicEvent) {
         return this.addGeographicEvent(geographicEvent);
       }, this));
     };
-    AppView.prototype.remove = function() {
+    AppView.prototype.removeAll = function() {
       this.infoWindow.close();
-      return $.each(this.markerViews, __bind(function() {
+      return $.each(this.markerViews, function() {
         return this.remove();
-      }, this));
+      });
     };
     return AppView;
   })();

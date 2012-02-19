@@ -24,8 +24,9 @@ class FeedsController < ApplicationController
       if @feed.save
         # Import memories from the feed later wth delayed_job
         @feed.send_later(:import_memories)
-        format.html { redirect_to(@feed,
-                      :notice => 'Feed was successfully created.') }
+        format.html {
+          redirect_to(@feed, :notice => 'Feed was successfully created.')
+        }
       else
         format.html { render :action => "new" }
       end
