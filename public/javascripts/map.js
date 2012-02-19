@@ -7,7 +7,7 @@
   Models are RESTful wrappers around server-side objects persisted in the
   database, and can POST back changes the user makes to his or her content.
   */
-  var AppView, HomeController, Map, MarkerView, Memory, MemoryList, NavigationItemView, NavigationView;
+  var AppView, GeographicEvent, GeographicEventList, HomeController, Map, MarkerView, NavigationItemView, NavigationView;
   var __hasProp = Object.prototype.hasOwnProperty, __extends = function(child, parent) {
     for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; }
     function ctor() { this.constructor = child; }
@@ -16,15 +16,30 @@
     child.__super__ = parent.prototype;
     return child;
   }, __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+  window.memento = {};
   _.templateSettings = {
     interpolate: /\{\{(.+?)\}\}/g
   };
-  Memory = (function() {
-    __extends(Memory, Backbone.Model);
-    function Memory() {
-      Memory.__super__.constructor.apply(this, arguments);
+  Backbone.old_sync = Backbone.sync;
+  Backbone.sync = function(method, model, options) {
+    var new_options;
+    new_options = _.extend({
+      beforeSend: function(xhr) {
+        var token;
+        token = $('meta[name="csrf-token"]').attr('content');
+        if (token) {
+          return xhr.setRequestHeader('X-CSRF-Token', token);
+        }
+      }
+    }, options);
+    return Backbone.old_sync(method, model, new_options);
+  };
+  GeographicEvent = (function() {
+    __extends(GeographicEvent, Backbone.Model);
+    function GeographicEvent() {
+      GeographicEvent.__super__.constructor.apply(this, arguments);
     }
-    Memory.prototype.escapedJson = function() {
+    GeographicEvent.prototype.escapedJson = function() {
       var json;
       return json = {
         title: this.escape("title"),
@@ -35,32 +50,32 @@
         id: this.get("id")
       };
     };
-    Memory.prototype.getSafe = function(fieldName) {
+    GeographicEvent.prototype.getSafe = function(fieldName) {
       var tmp;
       tmp = document.createElement("DIV");
       tmp.innerHTML = this.get(fieldName);
       return tmp.textContent || tmp.innerText;
     };
-    Memory.prototype.getDate = function() {
+    GeographicEvent.prototype.getDate = function() {
       return new Date(Date.parse(this.get("date")));
     };
-    return Memory;
+    return GeographicEvent;
   })();
-  MemoryList = (function() {
-    __extends(MemoryList, Backbone.Collection);
-    function MemoryList() {
-      MemoryList.__super__.constructor.apply(this, arguments);
+  GeographicEventList = (function() {
+    __extends(GeographicEventList, Backbone.Collection);
+    function GeographicEventList() {
+      GeographicEventList.__super__.constructor.apply(this, arguments);
     }
-    MemoryList.prototype.model = Memory;
-    MemoryList.prototype.memoriesForYear = function(year) {
+    GeographicEventList.prototype.model = GeographicEvent;
+    GeographicEventList.prototype.geographicEventsForYear = function(year) {
       if (year === "Any") {
         return this.models;
       }
-      return this.filter(function(memory) {
-        return year === "Any" || memory.getDate().getFullYear().toString() === year;
+      return this.filter(function(geographicEvent) {
+        return year === "Any" || geographicEvent.getDate().getFullYear().toString() === year;
       });
     };
-    return MemoryList;
+    return GeographicEventList;
   })();
   Map = (function() {
     __extends(Map, Backbone.Model);
@@ -69,20 +84,20 @@
     }
     Map.prototype.initialize = function(options) {
       this.url = "/maps/" + options.mapId;
-      return this.__memories.url = "/memories/";
+      return this.__geographicEvents.url = "/geographic_events/";
     };
     Map.prototype.set = function(attributes) {
       Map.__super__.set.call(this, attributes);
-      if (attributes.memories != null) {
-        if (!this.__memories) {
-          this.__memories = new MemoryList();
+      if (attributes.geographic_events != null) {
+        if (!this.__geographicEvents) {
+          this.__geographicEvents = new GeographicEventList();
         }
-        return this.__memories.refresh(this.attributes.memories);
+        return this.__geographicEvents.refresh(this.attributes.geographic_events);
       }
     };
     Map.prototype.get = function(attribute) {
-      if (attribute === "memories") {
-        return this.__memories;
+      if (attribute === "geographic_events") {
+        return this.__geographicEvents;
       }
       return Map.__super__.get.call(this, attribute);
     };
@@ -229,7 +244,8 @@
         description: description
       });
       this.model.save();
-      return this.toggle();
+      this.toggle();
+      return window.location = "#markers/marker/open/" + this.model.get("id");
     };
     MarkerView.prototype.remove = function() {
       google.maps.event.clearInstanceListeners(this.marker);
@@ -282,27 +298,27 @@
       NavigationView.__super__.constructor.apply(this, arguments);
     }
     NavigationView.prototype.initialize = function() {
-      _.bindAll(this, 'render', 'addMemory', 'AddMemoriesForYear', 'remove', 'getSelectedYear');
+      _.bindAll(this, 'render', 'addGeographicEvent', 'addGeographicEventsForYear', 'remove', 'getSelectedYear');
       this.itemViews = [];
       this.selectId = this.options.selectId || "year";
       this.year = this.getSelectedYear();
       this.id = this.id || "navigation";
-      this.collection.bind('add', this.addMemory);
+      this.collection.bind('add', this.addGeographicEvent);
       this.collection.bind('refresh', this.render);
       return this.render();
     };
-    NavigationView.prototype.addMemory = function(memory) {
+    NavigationView.prototype.addGeographicEvent = function(geographicEvent) {
       var view;
       view = new NavigationItemView({
-        model: memory
+        model: geographicEvent
       });
       return this.itemViews.push(view);
     };
-    NavigationView.prototype.addMemoriesForYear = function(year) {
-      var memories;
-      memories = this.collection.memoriesForYear(year);
-      return $.each(memories, __bind(function(_, memory) {
-        return this.addMemory(memory);
+    NavigationView.prototype.addGeographicEventsForYear = function(year) {
+      var geographicEvents;
+      geographicEvents = this.collection.geographicEventsForYear(year);
+      return $.each(geographicEvents, __bind(function(_, geographicEvent) {
+        return this.addGeographicEvent(geographicEvent);
       }, this));
     };
     NavigationView.prototype.render = function() {
@@ -310,7 +326,7 @@
         this.renderSlider();
       }
       this.remove();
-      this.addMemoriesForYear(this.year);
+      this.addGeographicEventsForYear(this.year);
       return $.each(this.itemViews, function() {
         return this.render();
       });
@@ -356,11 +372,11 @@
     }
     AppView.prototype.initialize = function() {
       var defaults, portlandOregon;
-      _.bindAll(this, "addMemoriesForYear", "addMemory", "render", "remove");
+      _.bindAll(this, "addGeographicEventsForYear", "addGeographicEvent", "render", "remove");
       this.googleMap = null;
       this.markerViews = [];
       this.navigationView = new NavigationView({
-        collection: this.model.get('memories')
+        collection: this.model.get('geographic_events')
       });
       portlandOregon = new google.maps.LatLng(45.52, -122.68);
       defaults = {
@@ -374,8 +390,8 @@
       this.googleMap = this.initGoogleMap();
       this.infoWindow = this.initInfoWindow();
       this.navigationView.bind("nav:yearChanged", this.filterMarkers);
-      this.model.get('memories').bind("refresh", this.filterMarkers);
-      this.model.get('memories').bind("add", this.addMemory);
+      this.model.get('geographic_events').bind("refresh", this.filterMarkers);
+      this.model.get('geographic_events').bind("add", this.addGeographicEvent);
       return this.filterMarkers();
     };
     AppView.prototype.sendActionToMarker = function(action, id) {
@@ -411,12 +427,12 @@
       });
     };
     AppView.prototype.render = function(year) {
-      var latestMemory;
+      var latestGeographicEvent;
       this.remove();
-      this.addMemoriesForYear(year);
-      latestMemory = this.markerViews[this.markerViews.length - 1];
-      if (latestMemory !== void 0) {
-        return this.googleMap.panTo(latestMemory.marker.getPosition());
+      this.addGeographicEventsForYear(year);
+      latestGeographicEvent = this.markerViews[this.markerViews.length - 1];
+      if (latestGeographicEvent !== void 0) {
+        return this.googleMap.panTo(latestGeographicEvent.marker.getPosition());
       } else {
 
       }
@@ -424,18 +440,18 @@
     AppView.prototype.filterMarkers = function() {
       return this.render(this.navigationView.getSelectedYear());
     };
-    AppView.prototype.addMemory = function(memory) {
+    AppView.prototype.addGeographicEvent = function(geographicEvent) {
       return this.markerViews.push(new MarkerView({
-        model: memory,
+        model: geographicEvent,
         map: this.googleMap,
         infoWindow: this.infoWindow
       }));
     };
-    AppView.prototype.addMemoriesForYear = function(year) {
-      var memories;
-      memories = this.model.get('memories').memoriesForYear(year);
-      return $.each(memories, __bind(function(_, memory) {
-        return this.addMemory(memory);
+    AppView.prototype.addGeographicEventsForYear = function(year) {
+      var geographicEvents;
+      geographicEvents = this.model.get('geographic_events').geographicEventsForYear(year);
+      return $.each(geographicEvents, __bind(function(_, geographicEvent) {
+        return this.addGeographicEvent(geographicEvent);
       }, this));
     };
     AppView.prototype.remove = function() {
@@ -465,7 +481,7 @@
     };
     return HomeController;
   })();
-  window.HomeController = HomeController;
-  window.MemoryList = MemoryList;
-  window.Map = Map;
+  window.memento.HomeController = HomeController;
+  window.memento.GeographicEventList = GeographicEventList;
+  window.memento.Map = Map;
 }).call(this);

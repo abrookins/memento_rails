@@ -8,14 +8,30 @@ database, and can POST back changes the user makes to his or her content.
 ###
 
 
+# A top-level object for Memento code.
+window.memento = {}
+
+
 # Use Django-style HTML templating with Underscore.
 _.templateSettings =
     interpolate: /\{\{(.+?)\}\}/g
 
 
+# Inject the CSRF token for all Backbone AJAX requests.
+Backbone.old_sync = Backbone.sync
+Backbone.sync = (method, model, options) ->
+    new_options =  _.extend({
+        beforeSend: (xhr) ->
+            token = $('meta[name="csrf-token"]').attr('content')
+            if (token)
+              xhr.setRequestHeader('X-CSRF-Token', token)
+    }, options)
+    Backbone.old_sync(method, model, new_options)
+
+
 # Models
 
-class Memory extends Backbone.Model
+class GeographicEvent extends Backbone.Model
     escapedJson: ->
         return json =
             title: @escape "title"
@@ -36,35 +52,35 @@ class Memory extends Backbone.Model
         new Date(Date.parse(@get("date")))
 
 
-class MemoryList extends Backbone.Collection
-    model: Memory
+class GeographicEventList extends Backbone.Collection
+    model: GeographicEvent
 
-    memoriesForYear: (year) ->
+    geographicEventsForYear: (year) ->
         if year is "Any"
             return @models
-        @filter (memory) ->
-            year is "Any" or memory.getDate().getFullYear().toString() is year
+        @filter (geographicEvent) ->
+            year is "Any" or geographicEvent.getDate().getFullYear().toString() is year
 
 
 class Map extends Backbone.Model
     initialize: (options) ->
         @url = "/maps/" + options.mapId
-        # A MemoryList that shadows the raw JSON in @memories, an array
-        # of Memory objects related to this Map.
-        @__memories.url = "/memories/"
+        # A GeographicEventList that shadows the raw JSON in @geographicEvents, an array
+        # of GeographicEvent objects related to this Map.
+        @__geographicEvents.url = "/geographic_events/"
 
     set: (attributes) ->
         super attributes
-        if attributes.memories?
-            # Refresh the MemoryList (@__memories) with new JSON.
-            if not @__memories
-                @__memories = new MemoryList()
-            @__memories.refresh @attributes.memories
+        if attributes.geographic_events?
+            # Refresh the GeographicEventList (@__geographicEvents) with new JSON.
+            if not @__geographicEvents
+                @__geographicEvents = new GeographicEventList()
+            @__geographicEvents.refresh @attributes.geographic_events
 
     get: (attribute) ->
-        if attribute is "memories"
-            # Return the MemoryList instead of the JSON in @memories.
-            return @__memories
+        if attribute is "geographic_events"
+            # Return the GeographicEventList instead of the JSON in @geographicEvents.
+            return @__geographicEvents
         super attribute
 
 
@@ -112,7 +128,7 @@ class MarkerView extends Backbone.View
         position = new google.maps.LatLng(parseFloat(@model.get("lat")),
                                           parseFloat(@model.get("lon")))
 
-        # Create a new Google Maps marker for this memory.
+        # Create a new Google Maps marker for this geographicEvent.
         @marker = new google.maps.Marker
             position: position
             map: @map
@@ -239,6 +255,9 @@ class MarkerView extends Backbone.View
         @model.save()
         @toggle()
 
+        # Redirect to the info window for this marker.
+        window.location = "#markers/marker/open/" + @model.get("id")
+
     remove: ->
         # Unregister marker events
         google.maps.event.clearInstanceListeners @marker
@@ -288,26 +307,26 @@ class NavigationItemView extends Backbone.View
 
 class NavigationView extends Backbone.View
     initialize: ->
-        _.bindAll @, 'render', 'addMemory', 'AddMemoriesForYear', 'remove', 'getSelectedYear'
+        _.bindAll @, 'render', 'addGeographicEvent', 'addGeographicEventsForYear', 'remove', 'getSelectedYear'
 
         @itemViews= []
         @selectId = @options.selectId || "year"
         @year = @getSelectedYear()
         @id = @id || "navigation"
 
-        @collection.bind 'add', @addMemory
+        @collection.bind 'add', @addGeographicEvent
         @collection.bind 'refresh', @render
         @render()
 
-    addMemory: (memory) ->
+    addGeographicEvent: (geographicEvent) ->
         view = new NavigationItemView
-            model: memory
+            model: geographicEvent
         @itemViews.push view
 
-    addMemoriesForYear: (year) ->
-        memories = @collection.memoriesForYear year
-        $.each memories, (_, memory) =>
-            @addMemory memory
+    addGeographicEventsForYear: (year) ->
+        geographicEvents = @collection.geographicEventsForYear year
+        $.each geographicEvents, (_, geographicEvent) =>
+            @addGeographicEvent geographicEvent
 
     render: ->
         @renderSlider() unless @slider?
@@ -316,7 +335,7 @@ class NavigationView extends Backbone.View
         @remove()
 
         # Add subviews for all visible models.
-        @addMemoriesForYear @year
+        @addGeographicEventsForYear @year
     
         # Render all subviews
         $.each @itemViews, -> @render()
@@ -353,12 +372,12 @@ class NavigationView extends Backbone.View
 class AppView extends Backbone.View
     initialize: ->
         # Bind 'this' to this object in event callbacks.
-        _.bindAll @, "addMemoriesForYear", "addMemory", "render", "remove"
+        _.bindAll @, "addGeographicEventsForYear", "addGeographicEvent", "render", "remove"
     
         @googleMap = null
         @markerViews = []
         @navigationView = new NavigationView
-            collection: @model.get('memories')
+            collection: @model.get('geographic_events')
 
         # TODO: User chooses default center, or default to their location.
         portlandOregon = new google.maps.LatLng(45.52, -122.68)
@@ -376,8 +395,8 @@ class AppView extends Backbone.View
 
         # Bind events to methods.
         @navigationView.bind "nav:yearChanged", @filterMarkers
-        @model.get('memories').bind "refresh", @filterMarkers
-        @model.get('memories').bind "add", @addMemory
+        @model.get('geographic_events').bind "refresh", @filterMarkers
+        @model.get('geographic_events').bind "add", @addGeographicEvent
         @filterMarkers()
 
     sendActionToMarker: (action, id) ->
@@ -404,13 +423,13 @@ class AppView extends Backbone.View
 
     render: (year) ->
         @remove()
-        @addMemoriesForYear year
+        @addGeographicEventsForYear year
 
-        # Pan map to the most recent memory on the map 
-        latestMemory = @markerViews[@markerViews.length-1]
+        # Pan map to the most recent geographicEvent on the map 
+        latestGeographicEvent = @markerViews[@markerViews.length-1]
 
-        if latestMemory isnt undefined
-            @googleMap.panTo latestMemory.marker.getPosition()
+        if latestGeographicEvent isnt undefined
+            @googleMap.panTo latestGeographicEvent.marker.getPosition()
         else
             # TODO: Handle the case where no markers are visible. 
 
@@ -418,15 +437,15 @@ class AppView extends Backbone.View
         # Remove current marker views, add new ones
         @render @navigationView.getSelectedYear()
 
-    addMemory: (memory) ->
+    addGeographicEvent: (geographicEvent) ->
         @markerViews.push new MarkerView
-            model: memory
+            model: geographicEvent
             map: @googleMap
             infoWindow: @infoWindow
 
-    addMemoriesForYear: (year) ->
-        memories = @model.get('memories').memoriesForYear year
-        $.each memories, (_, memory) => @addMemory memory
+    addGeographicEventsForYear: (year) ->
+        geographicEvents = @model.get('geographic_events').geographicEventsForYear year
+        $.each geographicEvents, (_, geographicEvent) => @addGeographicEvent geographicEvent
 
     remove: ->
         @infoWindow.close()
@@ -446,6 +465,6 @@ class HomeController extends Backbone.Controller
     sendActionToMarker: (action, id) ->
         @appView.sendActionToMarker action, id
     
-window.HomeController = HomeController
-window.MemoryList = MemoryList
-window.Map = Map
+window.memento.HomeController = HomeController
+window.memento.GeographicEventList = GeographicEventList
+window.memento.Map = Map
