@@ -1,13 +1,14 @@
 source 'http://rubygems.org'
 
-gem 'rails', '3.0.7'
+gem 'rails', '3.2.1'
 gem 'pg', '0.11.0'
-gem 'devise', '1.3.4'
+gem 'devise', '2.0.4'
 gem 'jquery-rails', '>= 1.0.3'
 gem 'koala'
 gem 'heroku'
 gem 'delayed_job'
 gem 'feedzirra'
+gem 'ruby-debug19'
 
 # Bundle edge Rails instead:
 # gem 'rails', :git => 'git://github.com/rails/rails.git'
