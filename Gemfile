@@ -4,6 +4,8 @@ gem 'rails', '3.0.7'
 gem 'pg', '0.11.0'
 gem 'devise', '1.3.4'
 gem 'jquery-rails', '>= 1.0.3'
+gem 'koala'
+gem 'heroku'
 gem 'delayed_job'
 gem 'feedzirra'
 
