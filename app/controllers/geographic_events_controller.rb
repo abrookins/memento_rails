@@ -30,12 +30,14 @@ class GeographicEventsController < ApplicationController
 
   def update
     @geographic_event = GeographicEvent.find(params[:id])
-    @geographic_event.description = params[:description] 
-    @geographic_event.title = params[:title] 
-    @geographic_event.place = params[:place] 
-    @geographic_event.lat = params[:lat] 
-    @geographic_event.lon = params[:lon] 
-    @geographic_event.date = params[:date] 
+    @geographic_event.update_attributes(
+      :description => params[:description],
+      :title => params[:title],
+      :place => params[:place],
+      :lat => params[:lat],
+      :lon => params[:lon],
+      :date => params[:date]
+    )
 
     respond_with(@map) do |format|
       format.json do |format|
