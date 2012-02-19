@@ -4,13 +4,11 @@ class GeographicEventsController < ApplicationController
 
   def index
     @geographic_events = current_user.geographic_events.all
-    ActiveRecord::Base.include_root_in_json = false
     respond_with @geographic_events
   end
 
   def show
     @geographic_event = GeographicEvent.find(params[:id])
-    ActiveRecord::Base.include_root_in_json = false
     respond_with @geographic_event
   end
 
@@ -31,14 +29,18 @@ class GeographicEventsController < ApplicationController
   end
 
   def update
-    debugger
     @geographic_event = GeographicEvent.find(params[:id])
-    # TODO: Need an edit view for this to work correctly with validation errors?
-    @geographic_event.update_attributes(params[:geographic_event])
+    @geographic_event.description = params[:description] 
+    @geographic_event.title = params[:title] 
+    @geographic_event.place = params[:place] 
+    @geographic_event.lat = params[:lat] 
+    @geographic_event.lon = params[:lon] 
+    @geographic_event.date = params[:date] 
 
     respond_with(@map) do |format|
       format.json do |format|
-        if @geographic_event.valid? 
+        if @geographic_event.valid?
+          @geographic_event.save
           render :json => @geographic_event.to_json
         else
           render :json => @geographic_event.to_json, :status => :unprocessable_entity

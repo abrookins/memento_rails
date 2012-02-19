@@ -9,7 +9,6 @@ class MapsController < ApplicationController
 
   def show
     @map = Map.find(params[:id])
-    ActiveRecord::Base.include_root_in_json = false
     @map_json = @map.to_json(:include => :geographic_events)
 
     respond_with(@map) do |format|
