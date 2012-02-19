@@ -31,6 +31,7 @@ class GeographicEventsController < ApplicationController
   end
 
   def update
+    debugger
     @geographic_event = GeographicEvent.find(params[:id])
     # TODO: Need an edit view for this to work correctly with validation errors?
     @geographic_event.update_attributes(params[:geographic_event])

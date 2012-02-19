@@ -49,8 +49,8 @@
         $("#navigation-container").css("height", mapHeight-2); // 1px border
     }
     $(window).load(function() {
-        var map = new Map(<%= @map_json %>);
-        new HomeController({ map: map });
+        var map = new memento.Map(<%= @map_json %>);
+        new memento.HomeController({ map: map });
         Backbone.history.start();
         resizeNav();
     });

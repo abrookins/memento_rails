@@ -10,11 +10,11 @@ class MapsController < ApplicationController
   def show
     @map = Map.find(params[:id])
     ActiveRecord::Base.include_root_in_json = false
-    @map_json = @map.to_json(:include => :memories)
+    @map_json = @map.to_json(:include => :geographic_events)
 
     respond_with(@map) do |format|
       format.html do
-        @years = @map.memories.collect {|m| m.date.year}.uniq
+        @years = @map.geographic_events.collect {|m| m.date.year}.uniq
         @map_json = @map_json.html_safe
       end
       format.json do |format|

@@ -1,5 +1,5 @@
 Memento::Application.routes.draw do
-  resources :maps, :feeds, :memories
+  resources :maps, :feeds, :geographic_events
 
   devise_for :users
 
